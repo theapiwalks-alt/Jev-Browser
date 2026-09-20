@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -10,7 +11,7 @@ from browser_harness.admin import ensure_daemon
 from browser_harness.helpers import cdp
 
 # Atomically read visible content and controls, preserving actual DOM node identity.
-READ_STATE = Path(__file__).with_name("snapshot.js").read_text()
+READ_STATE = Path(__file__).with_name("snapshot.js").read_text(encoding="utf-8")
 MARKER = f"(() => {{ const state={READ_STATE}; return state?.marker ?? null; }})()"
 
 class StalePage(ValueError):
@@ -25,10 +26,25 @@ class Browser:
         self.call("Emulation.setDeviceMetricsOverride", width=1120, height=780, deviceScaleFactor=1, mobile=False)
         # Keep rAF/menus rendering in an owned background tab, without activating the user's Chrome tab.
         self.call("Emulation.setFocusEmulationEnabled", enabled=True)
+        if os.environ.get("JEV_FOREGROUND") == "1":
+            self.call("Page.bringToFront")
         self.call("Page.navigate", url=url)
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            if self.evaluate("document.readyState") == "complete":
+            try:
+                state = self.evaluate("[location.href, document.readyState]")
+            except StalePage:
+                time.sleep(0.02)
+                continue
+            except RuntimeError as error:
+                error_text = str(error).lower()
+                if not any(phrase in error_text for phrase in (
+                    "execution context", "context was destroyed", "cannot find context with specified id"
+                )):
+                    raise
+                time.sleep(0.02)
+                continue
+            if state and state[1] == "complete" and (url == "about:blank" or state[0] != "about:blank"):
                 break
             time.sleep(0.02)
 
@@ -50,21 +66,32 @@ class Browser:
                     "Runtime.evaluate",
                     expression="""(action => new Promise(resolve => {
                       const field=window.__jevFast?.nodes.get(action.node);
-                      const autocomplete=action.kind==='fill' && field?.getAttribute('role')==='combobox';
+                      const autocomplete=action.kind==='fill' && !!field && (
+                        field.getAttribute('role')==='combobox' ||
+                        field.hasAttribute('aria-autocomplete') ||
+                        field.hasAttribute('aria-controls') ||
+                        field.hasAttribute('aria-owns'));
+                      const opener=action.kind==='click' && !!field && (
+                        field.hasAttribute('aria-haspopup') || field.getAttribute('aria-expanded')==='false');
                       let frames=0, stopped=false;
                       const finish=()=>{stopped=true;resolve()};
-                      setTimeout(finish,autocomplete ? 200 : 50);
+                      setTimeout(finish,autocomplete ? 200 : opener ? 400 : 50);
                       const ready=()=>{
                         if (stopped) return;
                         const ids=(field?.getAttribute('aria-controls')||field?.getAttribute('aria-owns')||'')
                           .split(/\\s+/).filter(Boolean);
                         const roots=ids.length ? ids.map(id=>document.getElementById(id)).filter(Boolean) : [document];
                         const options=roots.flatMap(root=>[...root.querySelectorAll('[role="option"]')]);
-                        if (++frames>=2 && (!autocomplete || options.some(e=>{
+                        const overlays=roots.flatMap(root=>[root,...root.querySelectorAll(
+                          '[role="dialog"],[role="grid"],[role="listbox"],[role="menu"]')])
+                          .filter(e=>['dialog','grid','listbox','menu'].includes(e.getAttribute?.('role')));
+                        const visible=e=>{
                           const r=e.getBoundingClientRect();
                           return r.width && r.height && r.bottom>0 && r.top<innerHeight &&
                             e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true});
-                        }))) finish();
+                        };
+                        if (++frames>=2 && ((!autocomplete && !opener) ||
+                          (autocomplete && options.some(visible)) || (opener && overlays.some(visible)))) finish();
                         else requestAnimationFrame(ready);
                       };
                       requestAnimationFrame(ready);

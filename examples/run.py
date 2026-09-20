@@ -5,7 +5,7 @@ import argparse
 from jev_ultrafast import Agent
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--url", required=True)
+parser.add_argument("--url", help="Start at this URL instead of searching for the task.")
 parser.add_argument("--goal", action="append", required=True, help="Repeat for an ordered list of goals.")
 args = parser.parse_args()
 

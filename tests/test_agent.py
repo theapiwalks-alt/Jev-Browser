@@ -64,6 +64,42 @@ def test_invalid_choice_is_rejected(mutation):
         model.validate_choice(a, {"a", "b"})
 
 
+@pytest.mark.parametrize(
+    ("task", "override", "expected"),
+    [
+        (
+            "Find the docs at https://docs.example.test/guide.",
+            None,
+            "https://docs.example.test/guide",
+        ),
+        (
+            "Find a browser-use project",
+            None,
+            "https://www.google.com/search?q=Find+a+browser-use+project",
+        ),
+        (
+            "Find a browser-use project",
+            "https://example.test/start",
+            "https://example.test/start",
+        ),
+    ],
+)
+def test_starting_url_prefers_override_then_task_url_then_search(task, override, expected):
+    assert loop.starting_url(task, override) == expected
+
+
+def test_agent_bootstraps_search_when_url_is_omitted(monkeypatch):
+    browser = Mock()
+    browser.observe.return_value = page()
+    monkeypatch.setattr(loop, "Browser", Mock(return_value=browser))
+
+    loop.Agent(None, "Find the latest Jev project")
+
+    loop.Browser.assert_called_once_with(
+        "https://www.google.com/search?q=Find+the+latest+Jev+project"
+    )
+
+
 def test_one_index_per_node_with_operation_specific_targets():
     elements, targets, controls = model.action_space(page()["actions"])
     assert len(elements) == 2
@@ -318,3 +354,116 @@ def test_navigation_during_prediction_reobserves_without_action(runner):
     assert runner.state["status"] == "ready"
     assert runner.state["decision"] is None
     runner.state["browser"].act.assert_not_called()
+
+
+def test_demo_environment_accepts_utf8_bom_without_overriding_process_values(tmp_path, monkeypatch):
+    from jev_ultrafast import demo
+
+    (tmp_path / ".env").write_text("# café\nKEY=éxample\nEXISTING=from-file\n", encoding="utf-8-sig")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("EXISTING", "from-process")
+    monkeypatch.delenv("KEY", raising=False)
+
+    demo.load_environment()
+
+    assert demo.os.environ["KEY"] == "éxample"
+    assert demo.os.environ["EXISTING"] == "from-process"
+
+
+def test_browser_navigation_does_not_accept_initial_about_blank(monkeypatch):
+    import jev_ultrafast.browser as browser
+
+    calls = []
+
+    def cdp(method, **kwargs):
+        calls.append(method)
+        if method == "Target.createTarget":
+            return {"targetId": "target"}
+        if method == "Target.attachToTarget":
+            return {"sessionId": "session"}
+        return {}
+
+    monkeypatch.setattr(browser, "cdp", cdp)
+    monkeypatch.setattr(browser, "ensure_daemon", Mock())
+    monkeypatch.setattr(browser.Browser, "evaluate", Mock(side_effect=[
+        StalePage("Document changed during evaluation"),
+        ["about:blank", "complete"],
+        ["https://example.test/", "complete"],
+    ]))
+    clock = iter([0, 0, 0, 0])
+    monkeypatch.setattr(browser.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(browser.time, "sleep", Mock())
+
+    browser.Browser("https://example.test/")
+
+    assert calls.count("Page.navigate") == 1
+
+
+def test_browser_navigation_accepts_explicit_about_blank(monkeypatch):
+    import jev_ultrafast.browser as browser
+
+    calls = []
+
+    def cdp(method, **kwargs):
+        calls.append(method)
+        if method == "Target.createTarget":
+            return {"targetId": "target"}
+        if method == "Target.attachToTarget":
+            return {"sessionId": "session"}
+        return {}
+
+    monkeypatch.setattr(browser, "cdp", cdp)
+    monkeypatch.setattr(browser, "ensure_daemon", Mock())
+    monkeypatch.setattr(browser.Browser, "evaluate", Mock(return_value=["about:blank", "complete"]))
+    clock = iter([0, 0])
+    monkeypatch.setattr(browser.time, "monotonic", lambda: next(clock))
+
+    browser.Browser("about:blank")
+
+    assert calls.count("Page.navigate") == 1
+
+
+def test_foreground_mode_brings_owned_target_forward(monkeypatch):
+    import jev_ultrafast.browser as browser
+
+    calls = []
+
+    def cdp(method, **kwargs):
+        calls.append(method)
+        if method == "Target.createTarget":
+            return {"targetId": "target"}
+        if method == "Target.attachToTarget":
+            return {"sessionId": "session"}
+        return {}
+
+    monkeypatch.setenv("JEV_FOREGROUND", "1")
+    monkeypatch.setattr(browser, "cdp", cdp)
+    monkeypatch.setattr(browser, "ensure_daemon", Mock())
+    monkeypatch.setattr(browser.Browser, "evaluate", Mock(return_value=["https://example.test/", "complete"]))
+    clock = iter([0, 0])
+    monkeypatch.setattr(browser.time, "monotonic", lambda: next(clock))
+
+    browser.Browser("https://example.test/")
+
+    focus = calls.index("Emulation.setFocusEmulationEnabled")
+    foreground = calls.index("Page.bringToFront")
+    navigate = calls.index("Page.navigate")
+    assert focus < foreground < navigate
+
+
+def test_post_interaction_wait_covers_semantic_autocomplete_and_overlays():
+    import jev_ultrafast.browser as browser
+
+    source = browser.Browser.observe.__code__
+    assert source.co_consts  # Keep this contract test attached to the touched method.
+    text = browser.Path(browser.__file__).read_text(encoding="utf-8")
+    for marker in (
+        "aria-autocomplete",
+        "aria-controls",
+        "aria-owns",
+        "aria-haspopup",
+        "aria-expanded",
+        "[role=\"dialog\"],[role=\"grid\"],[role=\"listbox\"],[role=\"menu\"]",
+        "opener ? 400 : 50",
+    ):
+        assert marker in text

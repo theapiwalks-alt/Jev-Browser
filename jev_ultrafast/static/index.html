@@ -11,17 +11,17 @@
   <body>
     <header>
       <a href="/" aria-label="Homepage" class="brand"
-        >browser<span>use</span> <i>×</i> TypeSafe</a
+        ><span>Jev</span> Browser</a
       >
       <div class="local"><span class="dot"></span> Jev Ultrafast</div>
     </header>
     <main>
       <section class="intro">
         <div>
-          <p class="eyebrow">A BROWSER THAT CHOOSES</p>
-          <h1>Every page is a set of possibilities.</h1>
+          <p class="eyebrow">JEV LAB · LIVE INSPECTOR</p>
+          <h1>Give Jev one thing to do.</h1>
           <p>
-            Jev picks the next action. A small language model handles the words.
+            It observes the page, ranks the next move, and lets you stay in control.
             <a href="/demo.mp4" target="_blank" rel="noopener">Watch the real Google Flights run ↗</a>
           </p>
         </div>
@@ -29,7 +29,7 @@
       </section>
       <form id="task-form">
         <div class="task-label">
-          <label for="goal">Give it a task</label
+          <label for="goal">Task</label
           ><select id="scenario" name="scenario" aria-label="Demo scenario">
             <option value="flights">Google Flights · real web</option>
             <option value="travel">Travel planner · fixture</option>
@@ -63,9 +63,16 @@ Find one-way flights from Zurich to London on September 20, 2026, for one adult 
       <section class="workspace">
         <div class="browser-panel">
           <div class="browser-bar">
-            <div class="traffic"><b></b><b></b><b></b></div>
-            <span id="url">Local demo browser</span
-            ><span class="live">LIVE</span>
+            <div class="browser-tabs">
+              <div class="traffic"><b></b><b></b><b></b></div>
+              <div class="browser-tab"><span class="tab-favicon">J</span><span id="page-title">New Jev tab</span></div>
+              <span class="tab-plus">+</span>
+            </div>
+            <div class="address-row">
+              <span class="nav-icon">‹</span><span class="nav-icon muted-icon">›</span><span class="nav-icon">↻</span>
+              <span class="address-lock">⌁</span><span id="url">Local demo browser</span>
+              <span class="live">LIVE</span>
+            </div>
           </div>
           <div class="viewport" id="viewport">
             <div class="empty" id="empty">
@@ -84,8 +91,7 @@ Find one-way flights from Zurich to London on September 20, 2026, for one adult 
             <div id="targets"></div>
           </div>
           <div class="browser-footer">
-            <span id="page-title">Isolated demo tab</span
-            ><span>AX tree → typed actions → CDP</span>
+            <span>Jev browser · isolated tab</span><span>AX tree → typed actions → CDP</span>
           </div>
         </div>
         <aside>

@@ -63,9 +63,13 @@ uv run jev
 
 Open **http://127.0.0.1:8766** and click **Start demo → Run automatically**. The inspector shows numbered elements, operation probabilities, target probabilities, and executed actions. **Choose next** pauses before execution.
 
+The inspector is designed as a small Jev Browser: enter one task in the centered task field, then inspect the live browser, indexed elements, and ranked next action. The browser-style viewport stays separate from the decision panel so prediction-only stepping remains visible before execution.
+
 Chrome connects through [Browser Harness](https://github.com/browser-use/browser-harness), installed by `uv sync`. Run `uv run browser-harness --doctor` if it needs connecting. Allow remote debugging in Chrome when prompted.
 
 `TEXT_MODEL_API_KEY` is an OpenRouter key in the example configuration. The current demo uses `inception/mercury-2.5` with reasoning disabled. Gemini, GLM, and DeepSeek can also use the OpenAI-compatible text helper; configure the appropriate model, endpoint, and reasoning setting.
+
+For Windows experimentation, `scripts\launch_jev_lab.ps1` starts or reuses a direct CDP connection, launches a dedicated Chrome profile when needed, starts Jev, and opens the inspector. `scripts\install_jev_desktop_shortcut.ps1` creates a `Jev Lab.lnk` shortcut on the Desktop. Keys are read from environment variables or entered for the current launcher process; do not put credentials in the repository.
 
 ## Use the library
 
@@ -81,7 +85,14 @@ with Agent(
         print(state["elapsed_ms"], state["status"])
 ```
 
-Run with `uv run --env-file .env python your_script.py`. The same policy can run a different task:
+Run with `uv run --env-file .env python your_script.py`. The same policy can run a different task. The URL is optional for the example runner: an explicit URL in the task is used first; otherwise Jev starts at a Google search for the task.
+
+```bash
+uv run --env-file .env python examples/run.py \
+  --goal 'Find and open the Wikipedia article about Gödel’s incompleteness theorems.'
+```
+
+To override the automatic starting point, pass `--url`:
 
 ```bash
 uv run --env-file .env python examples/run.py \

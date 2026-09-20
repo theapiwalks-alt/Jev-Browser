@@ -1,12 +1,24 @@
 """The complete agent loop. Typed choices, observable state, bounded execution."""
 
 import base64
+import re
 import time
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from .browser import Browser, StalePage
 from .model import action_space, choose, field_context, field_text
 from .questions import MAX_STEPS
+
+
+def starting_url(task, override=None):
+    """Choose an explicit task URL or begin with a search for the task."""
+    if override:
+        return override
+    match = re.search(r"https?://[^\s<>\"']+", task)
+    if match:
+        return match.group(0).rstrip(".,!?;:)")
+    return f"https://www.google.com/search?q={quote_plus(task)}"
 
 
 class Agent:
@@ -16,7 +28,7 @@ class Agent:
             raise ValueError("Supply a task")
         plan = [task]
         self.pending_text = None
-        self.browser = Browser(url)
+        self.browser = Browser(starting_url(task, url))
         self.record_dir = Path(record_dir) if record_dir else None
         self.screenshots = screenshots or bool(record_dir)
         try:
