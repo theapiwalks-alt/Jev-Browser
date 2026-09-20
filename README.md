@@ -61,9 +61,9 @@ cp .env.example .env
 uv run jev
 ```
 
-Open **http://127.0.0.1:8766** and click **Start demo → Run automatically**. The inspector shows numbered elements, operation probabilities, target probabilities, and executed actions. **Choose next** pauses before execution.
+Open **http://127.0.0.1:8766**. The local UI opens as a simple browser surface: the controlled page is the main view, and Jev is a single command bar docked along the bottom. Enter a goal and press the arrow to start a session. The existing inspector remains below the browser for prediction-only stepping, operation probabilities, target probabilities, overlays, raw model state, history, and trace export.
 
-The inspector is designed as a small Jev Browser: enter one task in the centered task field, then inspect the live browser, indexed elements, and ranked next action. The browser-style viewport stays separate from the decision panel so prediction-only stepping remains visible before execution.
+The browser-first layout is intentionally small: there is no separate demo dashboard or site-specific control surface. Jev still preserves the same causal loop—page, indexed observed elements, operation and target, validated action, execution, and fresh observation.
 
 Chrome connects through [Browser Harness](https://github.com/browser-use/browser-harness), installed by `uv sync`. Run `uv run browser-harness --doctor` if it needs connecting. Allow remote debugging in Chrome when prompted.
 
